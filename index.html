@@ -170,11 +170,16 @@ header b{text-shadow:none;color:#131921}
       if(old&&old.items&&old.items.length){data=old;dirty=true;localStorage.setItem(DKEY,JSON.stringify({base:SEED.v,data:data}))}
     }catch(e){}
   }
+  // No size limit: the file just grows as you add links (like an Excel file).
+  // localStorage is only a best-effort backup of unsaved edits; if it is full we keep going in memory.
   function save(){
-    try{localStorage.setItem(DKEY,JSON.stringify({base:SEED.v,data:data}));dirty=true;return true}
-    catch(e){$("msg").style.color="#B12704";$("msg").textContent="Storage is full. Click Save to file now, or use smaller images.";return false}
+    dirty=true;
+    try{localStorage.setItem(DKEY,JSON.stringify({base:SEED.v,data:data}))}catch(e){}
+    return true;
   }
-  function note(t){$("msg").style.color="#067D62";$("msg").textContent=t+" Click \"Save to file\" and upload the new index.html so all devices see it."}
+  function size(){return (new Blob([JSON.stringify(data.items)]).size/1048576).toFixed(2)+" MB"}
+  function note(t){$("msg").style.color="#067D62";$("msg").textContent=t+" Data size: "+size()+". Click \"Save to file\" so it is stored in the file."}
+  window.addEventListener("beforeunload",function(e){if(dirty&&!fh){e.preventDefault();e.returnValue=""}});
   function dom(u){try{return esc(new URL(u).hostname.replace(/^www\./,""))}catch(e){return ""}}
   function esc(t){var d=document.createElement("div");d.textContent=t;return d.innerHTML.replace(/"/g,"&quot;")}
   function fixUrl(u){return /^https?:\/\//i.test(u)?u:"https://"+u}
@@ -273,7 +278,7 @@ header b{text-shadow:none;color:#131921}
   // after the file is chosen once, every add/delete is written straight into it
   function autoSave(){
     if(!fh)return false;
-    writeFile().then(function(){done("Saved into the file. Share this file and everyone sees the same links.")})
+    writeFile().then(function(){done("Saved into the file ("+size()+" of links). Share this file and everyone sees the same links.")})
       .catch(function(){fh=null;note("Could not write to the file.")});
     return true;
   }

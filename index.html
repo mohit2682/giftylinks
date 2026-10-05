@@ -136,7 +136,8 @@ header b{text-shadow:none;color:#131921}
       <div class="cats" id="catBox"></div>
       <div class="row">
         <button class="btn" id="add">Add link</button>
-        <button class="btn alt" id="export">Download my page</button>
+        <button class="btn" id="saveFile">Save to file</button>
+        <button class="btn alt" id="export">Download public page (no editor)</button>
       </div>
       <div class="msg" id="msg"></div>
     </div>
@@ -145,18 +146,35 @@ header b{text-shadow:none;color:#131921}
   </div>
 </main>
 
+<script id="seed" type="application/json">{"v":0,"title":"My Links","bio":"","items":[]}</script>
 <script>
 (function(){
+  var TEMPLATE="<!DOCTYPE html>\n"+document.documentElement.outerHTML;
   var CATS=["Personalized Gifts", "Birthday Gifts", "Anniversary & Romantic Gifts", "Wedding & Engagement Gifts", "Festival & Religious Gifts", "Corporate & Office Gifts", "Flowers, Plants & Bouquets", "Chocolates, Sweets & Dry Fruits", "Home Décor & Housewarming Gifts", "Beauty, Grooming & Self-Care Gifts", "Kids, Baby & Newborn Gifts", "Gifts for Couples", "Gifts for Him", "Gifts for Her", "Gifts for Parents", "Gifts for Friends & Friendship", "Gifts for Siblings", "Gifts for Seniors", "Gift Hampers & Gift Baskets", "Return Gifts & Party Favors", "Greeting Cards & Stationery", "Premium & Luxury Gifts", "Budget & Affordable Gifts", "Valentine’s Day Gifts", "Mother’s Day Gifts", "Father’s Day Gifts", "Graduation & Achievement Gifts", "Farewell & Retirement Gifts", "Thank You & Appreciation Gifts", "Get Well Soon Gifts", "Congratulations & New Job Gifts", "Teacher Gifts", "Employee & Team Gifts", "Travel Gifts", "Jewelry & Fashion Accessories", "Watches, Wallets & Bags", "Gadgets & Tech Gifts", "Kitchen & Dining Gifts", "Fitness & Wellness Gifts", "Books & Journals", "Toys, Games & Hobby Gifts", "Candles, Perfumes & Fragrance Gifts", "Photo & Memory Gifts", "Handmade & Artisan Gifts", "Eco-Friendly & Sustainable Gifts", "Traditional & Ethnic Gifts", "Experiential & Activity Gifts"];
   var KEY="amazonLinkPage", data={title:"My Links",bio:"",items:[]}, imgData="";
   var $=function(id){return document.getElementById(id)};
 
-  try{var s=localStorage.getItem(KEY);if(s)data=JSON.parse(s)}catch(e){}
-
-  function save(){
-    try{localStorage.setItem(KEY,JSON.stringify(data));return true}
-    catch(e){$("msg").textContent="Storage is full. Delete a link or use smaller images.";return false}
+  // ===== DATA LIVES IN THIS FILE (the #seed block above) =====
+  var SEED={v:0,title:"My Links",bio:"",items:[]};
+  try{SEED=JSON.parse($("seed").textContent)}catch(e){}
+  var DKEY="amazonLinkDraft", dirty=false;
+  data=JSON.parse(JSON.stringify(SEED));
+  // unsaved edits made on this device (only used if they were based on this exact file version)
+  try{var dr=JSON.parse(localStorage.getItem(DKEY)||"null");
+    if(dr&&dr.base===SEED.v){data=dr.data;dirty=true}
+    else if(dr)localStorage.removeItem(DKEY);
+  }catch(e){}
+  // one-time import of links saved by the older localStorage version
+  if(!SEED.items.length&&!dirty){
+    try{var old=JSON.parse(localStorage.getItem(KEY)||"null");
+      if(old&&old.items&&old.items.length){data=old;dirty=true;localStorage.setItem(DKEY,JSON.stringify({base:SEED.v,data:data}))}
+    }catch(e){}
   }
+  function save(){
+    try{localStorage.setItem(DKEY,JSON.stringify({base:SEED.v,data:data}));dirty=true;return true}
+    catch(e){$("msg").style.color="#B12704";$("msg").textContent="Storage is full. Click Save to file now, or use smaller images.";return false}
+  }
+  function note(t){$("msg").style.color="#067D62";$("msg").textContent=t+" Click \"Save to file\" and upload the new index.html so all devices see it."}
   function dom(u){try{return esc(new URL(u).hostname.replace(/^www\./,""))}catch(e){return ""}}
   function esc(t){var d=document.createElement("div");d.textContent=t;return d.innerHTML.replace(/"/g,"&quot;")}
   function fixUrl(u){return /^https?:\/\//i.test(u)?u:"https://"+u}
@@ -223,18 +241,54 @@ header b{text-shadow:none;color:#131921}
     if(!name||!url){$("msg").style.color="#B12704";$("msg").textContent="Enter a product name and a link.";return}
     var cats=[].slice.call(document.querySelectorAll("#catBox input:checked")).map(function(b){return b.value});
     data.items.push({img:imgData,code:$("code").value.trim(),name:name,url:fixUrl(url),desc:$("desc").value.trim(),cats:cats});
-    if(save()){
-      $("msg").style.color="#067D62";$("msg").textContent="Link added.";
-      $("name").value=$("url").value=$("desc").value=$("code").value="";$("img").value="";
-      [].forEach.call(document.querySelectorAll("#catBox input"),function(b){b.checked=false});
-      imgData="";$("preview").style.display="none";
-      render();
-    }else{data.items.pop()}
+    save();
+    if(!autoSave())note("Link added.");
+    $("name").value=$("url").value=$("desc").value=$("code").value="";$("img").value="";
+    [].forEach.call(document.querySelectorAll("#catBox input"),function(b){b.checked=false});
+    imgData="";$("preview").style.display="none";
+    render();
   };
 
   $("editList").onclick=function(e){
     var i=e.target.getAttribute("data-i");
-    if(i!==null&&confirm("Delete this link?")){data.items.splice(+i,1);save();render()}
+    if(i===null)return;
+    if(!confirm("Delete this link permanently?"))return;
+    data.items.splice(+i,1);save();render();
+    if(!autoSave())note("Link deleted.");
+  };
+
+  // Save everything (links + editor) back into this file
+  var fh=null;
+  function build(){
+    var seed={v:Date.now(),title:data.title||"My Links",bio:data.bio||"",items:data.items};
+    var json=JSON.stringify(seed).replace(/</g,"\\u003c");
+    SEED.v=seed.v;
+    return TEMPLATE.replace(/(<script id="seed" type="application\/json">)[\s\S]*?(<\/script>)/,function(m,p1,p2){return p1+json+p2});
+  }
+  function done(t){try{localStorage.removeItem(DKEY)}catch(e){}dirty=false;$("msg").style.color="#067D62";$("msg").textContent=t}
+  function writeFile(){
+    var out=build();
+    return fh.createWritable().then(function(w){return w.write(out).then(function(){return w.close()})});
+  }
+  // after the file is chosen once, every add/delete is written straight into it
+  function autoSave(){
+    if(!fh)return false;
+    writeFile().then(function(){done("Saved into the file. Share this file and everyone sees the same links.")})
+      .catch(function(){fh=null;note("Could not write to the file.")});
+    return true;
+  }
+  $("saveFile").onclick=function(){
+    if(window.showSaveFilePicker){
+      window.showSaveFilePicker({suggestedName:"index.html",types:[{description:"HTML file",accept:{"text/html":[".html"]}}]})
+        .then(function(h){fh=h;return writeFile()})
+        .then(function(){done("Saved into the file. From now on every change is written to it automatically.")})
+        .catch(function(){});
+      return;
+    }
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([build()],{type:"text/html"}));
+    a.download="index.html";a.click();
+    done("Saved index.html. Replace the old file with it. Share that file and everyone sees the same links.");
   };
 
   // Download a clean page (no editor) that you can host anywhere

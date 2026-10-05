@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My Links</title>
@@ -99,7 +98,7 @@ header b{text-shadow:none;color:#131921}
 </style>
 </head>
 <body>
-<header><b>my<span>links</span></b><div class="sbar" id="sbar"><input type="search" id="q" placeholder="Search by name, item or code" aria-label="Search links"><button class="sbtn" id="go" aria-label="Search"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#131921" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg></button></div></header>
+<header><b>my<span>links</span></b><div class="sbar" id="sbar"><input type="search" id="q" placeholder="Search by name, item or code" aria-label="Search links"><button class="sbtn" id="go" aria-label="Search"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#131921" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5L21 21"></path></svg></button></div></header>
 <nav class="sub"><button id="tabHome" class="on">Home</button><button id="tabEdit">Edit</button></nav>
 
 <main>
@@ -139,12 +138,6 @@ header b{text-shadow:none;color:#131921}
         <button class="btn" id="saveFile">Save to file</button>
         <button class="btn alt" id="export">Download public page (no editor)</button>
       </div>
-      <label>GitHub auto-save (this device only)</label>
-      <input type="text" id="ghRepo" placeholder="owner/repo e.g. mohit/my-links">
-      <input type="text" id="ghBranch" placeholder="Branch (main)" style="margin-top:6px">
-      <input type="text" id="ghPath" placeholder="File path (index.html)" style="margin-top:6px">
-      <input type="password" id="ghToken" placeholder="GitHub token (fine-grained, Contents: read &amp; write)" style="margin-top:6px">
-      <div class="row"><button class="btn alt" id="ghConnect">Connect GitHub</button></div>
       <div class="msg" id="msg"></div>
     </div>
     <h2 style="margin-top:8px">Your links</h2>
@@ -152,7 +145,7 @@ header b{text-shadow:none;color:#131921}
   </div>
 </main>
 
-<script id="seed" type="application/json">{"v":0,"title":"My Links","bio":"","items":[]}</script>
+<script id="seed" type="application/json">{"v":1791218575948,"title":"My Links","bio":"","items":[{"img":"","code":"rgrrgrgrgr","name":"ghh","url":"https://teetrg","desc":"grwg","cats":["Personalized Gifts"]},{"img":"","code":"uhuuih","name":"gy","url":"https://7","desc":"7445","cats":["Kids, Baby & Newborn Gifts"]},{"img":"","code":"116","name":"45","url":"https://6226","desc":"6262","cats":["Kids, Baby & Newborn Gifts"]}]}</script>
 <script>
 (function(){
   var TEMPLATE="<!DOCTYPE html>\n"+document.documentElement.outerHTML;
@@ -185,7 +178,7 @@ header b{text-shadow:none;color:#131921}
   }
   function size(){return (new Blob([JSON.stringify(data.items)]).size/1048576).toFixed(2)+" MB"}
   function note(t){$("msg").style.color="#067D62";$("msg").textContent=t+" Data size: "+size()+". Click \"Save to file\" so it is stored in the file."}
-  window.addEventListener("beforeunload",function(e){if(dirty){e.preventDefault();e.returnValue=""}});
+  window.addEventListener("beforeunload",function(e){if(dirty&&!fh){e.preventDefault();e.returnValue=""}});
   function dom(u){try{return esc(new URL(u).hostname.replace(/^www\./,""))}catch(e){return ""}}
   function esc(t){var d=document.createElement("div");d.textContent=t;return d.innerHTML.replace(/"/g,"&quot;")}
   function fixUrl(u){return /^https?:\/\//i.test(u)?u:"https://"+u}
@@ -281,46 +274,14 @@ header b{text-shadow:none;color:#131921}
     var out=build();
     return fh.createWritable().then(function(w){return w.write(out).then(function(){return w.close()})});
   }
-  // ===== GitHub auto-save: commits the updated index.html to your repo =====
-  var cfg=null;
-  try{cfg=JSON.parse(localStorage.getItem("ghcfg")||"null")}catch(e){}
-  if(cfg){$("ghRepo").value=cfg.repo;$("ghBranch").value=cfg.branch;$("ghPath").value=cfg.path;$("ghToken").value=cfg.token}
-  function b64(str){return new Promise(function(res){var r=new FileReader();r.onload=function(){res(r.result.split(",")[1])};r.readAsDataURL(new Blob([str],{type:"text/html"}))})}
-  function ghApi(m,url,body){
-    return fetch("https://api.github.com"+url,{method:m,headers:{"Authorization":"Bearer "+cfg.token,"Accept":"application/vnd.github+json"},body:body?JSON.stringify(body):undefined})
-      .then(function(r){return r.json().then(function(j){if(!r.ok){var e=new Error(j.message||r.status);e.status=r.status;throw e}return j})});
-  }
-  function ghPush(retry){
-    var u="/repos/"+cfg.repo+"/contents/"+cfg.path.split("/").map(encodeURIComponent).join("/");
-    return Promise.all([b64(build()),ghApi("GET",u+"?ref="+encodeURIComponent(cfg.branch)).then(function(j){return j.sha},function(e){if(e.status===404)return undefined;throw e})])
-      .then(function(a){return ghApi("PUT",u,{message:"Update links",content:a[0],sha:a[1],branch:cfg.branch})})
-      .catch(function(e){if(!retry&&e.status===409)return ghPush(true);throw e});
-  }
-  var ghBusy=false,ghAgain=false;
-  function ghSave(){
-    if(ghBusy){ghAgain=true;return}
-    ghBusy=true;$("msg").style.color="#555";$("msg").textContent="Saving to GitHub...";
-    ghPush().then(function(){done("Saved to GitHub ("+size()+"). It goes live on your site in about a minute.")})
-      .catch(function(e){$("msg").style.color="#B12704";$("msg").textContent="GitHub save failed: "+e.message+". Check the token, repo and branch."})
-      .then(function(){ghBusy=false;if(ghAgain){ghAgain=false;ghSave()}});
-  }
-  $("ghConnect").onclick=function(){
-    var repo=$("ghRepo").value.trim(),tok=$("ghToken").value.trim();
-    if(!/^[\w.-]+\/[\w.-]+$/.test(repo)||!tok){$("msg").style.color="#B12704";$("msg").textContent="Enter repo as owner/repo and your token.";return}
-    cfg={repo:repo,branch:$("ghBranch").value.trim()||"main",path:$("ghPath").value.trim()||"index.html",token:tok};
-    try{localStorage.setItem("ghcfg",JSON.stringify(cfg))}catch(e){}
-    ghSave();
-  };
-  // after setup, every add/delete is saved automatically
+  // after the file is chosen once, every add/delete is written straight into it
   function autoSave(){
-    if(cfg){ghSave();return true}
     if(!fh)return false;
     writeFile().then(function(){done("Saved into the file ("+size()+" of links). Share this file and everyone sees the same links.")})
       .catch(function(){fh=null;note("Could not write to the file.")});
     return true;
   }
   $("saveFile").onclick=function(){
-    if(cfg){ghSave();return}
     if(window.showSaveFilePicker){
       window.showSaveFilePicker({suggestedName:"index.html",types:[{description:"HTML file",accept:{"text/html":[".html"]}}]})
         .then(function(h){fh=h;return writeFile()})
@@ -382,6 +343,4 @@ header b{text-shadow:none;color:#131921}
   });
   show("home");
 })();
-</script>
-</body>
-</html>
+</script></body></html>
